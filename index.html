@@ -221,7 +221,7 @@ function renderReport(){
   <h1>DreamShot hơn Renix AI ở đâu – và vì sao eCPM cao hơn?</h1>
   <p class="sub">So sánh doanh thu quảng cáo (AdMob mediation) thị trường US · ${nf(ROWS.length)} dòng dữ liệu · ${units.length} ad unit.</p>
   <nav class="toc">
-    <a href="#s1">Kết luận</a><a href="#s2">Chỉ số chính</a><a href="#s3">Vì sao eCPM cao hơn</a><a href="#s4">Từng ad unit</a><a href="#s5">Định dạng</a><a href="#s6">Nguồn quảng cáo</a><a href="#s7">First open</a><a href="#s8">User & first open</a><a href="#s9">Điểm khác biệt</a><a href="#s10">Khuyến nghị</a><a href="#s11">Cần thêm data</a>
+    <a href="#s1">Kết luận</a><a href="#s2">Chỉ số chính</a><a href="#s3">Vì sao eCPM cao hơn</a><a href="#s4">Từng ad unit</a><a href="#s5">Định dạng</a><a href="#s6">Nguồn quảng cáo</a><a href="#s7">First open</a><a href="#s8">User & first open</a><a href="#s8b">Toàn bộ chỉ số</a><a href="#s9">Điểm khác biệt</a><a href="#s10">Khuyến nghị</a><a href="#s11">Cần thêm data</a>
   </nav>
 
   <section class="card" id="s1">
@@ -372,6 +372,8 @@ function renderReport(){
     <p class="note">Nguồn: ảnh dashboard trong renix.docx / dreamshot.docx. “Tỉ lệ first open” = cohort users / installs trong bảng ROAS (giả định). Home rate theo ngày cài, US, bản ${HOME.Dream.ver} (Dream) và ${HOME.Renix.ver} (Renix); ngày 26/10 nằm ngoài kỳ nên không tính.</p>
   </section>
 
+  ${allMetricsHTML()}
+
   <section class="card" id="s9">
     <div class="kicker">Tóm tắt</div><h2>Điểm khác biệt giữa hai app</h2>
     <div class="diff">
@@ -412,6 +414,47 @@ function renderReport(){
     <p class="note"><b>Phương pháp:</b> kỳ dữ liệu 23–25/10/2026, US. loại các dòng placeholder (nguồn ký tự lỗi, 0 request) chỉ để lấy AU; cột “Active users” trong CSV (Dream ${AUcsv.Dream}, Renix ${AUcsv.Renix}) <b>không dùng</b> cho chỉ số theo user vì không khớp DAU thực – thay bằng tổng DAU 3 ngày (Dream ${nf(AU.Dream)}, Renix ${nf(AU.Renix)}); eCPM = doanh thu / impression × 1000 tính lại từ dữ liệu; “AdMob Network” (không Waterfall) gồm bidding/mediation chuẩn.</p>
   </section>`;
 }
+function allMetricsHTML(){
+  const A=a=>{const rs=of(a),b=rs.filter(x=>x.bidreq>0),
+    bidreq=sum(b.map(x=>x.bidreq)),inA=sum(b.map(x=>x.bidreq*x.inauc/100)),wins=sum(b.map(x=>x.bidreq*x.inauc/100*x.win/100)),
+    lr=rs.filter(x=>x.lat>0&&x.req>0),lat=sum(lr.map(x=>x.lat*x.req))/sum(lr.map(x=>x.req));
+    const fm=f=>agg(rs.filter(x=>x.fmt===f)).earn/T[a].earn*100;
+    return {bidreq,inauc:bidreq?inA/bidreq*100:0,win:inA?wins/inA*100:0,lat,
+      fI:fm('Interstitial'),fN:fm('Native'),fB:fm('Banner'),fR:fm('Rewarded'),
+      nU:new Set(rs.filter(x=>x.imp>0).map(x=>x.unit)).size,nS:new Set(rs.filter(x=>x.earn>0).map(x=>x.src)).size,
+      ctr:T[a].imp?T[a].clk/T[a].imp*100:0}};
+  const X={Dream:A('Dream'),Renix:A('Renix')};
+  const g=(t,a)=>[t,[a]];
+  // [nhãn, hàm(app), số lẻ, hướng: 1 cao hơn tốt, -1 thấp hơn tốt, 0 trung tính]
+  const G=[
+   ['Doanh thu & giá',[
+    ['Doanh thu ước tính ($)',a=>T[a].earn,0,1],['Impressions',a=>T[a].imp,0,1],['eCPM tổng ($)',a=>T[a].ecpm,1,1],['eCPM bỏ Waterfall ($)',a=>TX[a].ecpm,1,1],
+    ['Clicks',a=>T[a].clk,0,0],['CTR (%)',a=>X[a].ctr,2,0]]],
+   ['Fill & hiệu quả request',[
+    ['Requests',a=>T[a].req,0,0],['Matched requests',a=>T[a].mreq,0,1],['Match rate (%)',a=>T[a].match,1,1],['Show rate (imp / matched, %)',a=>T[a].show,1,1],['Imp / request (%)',a=>T[a].fill,1,1],['Ad load latency TB (s)',a=>X[a].lat,2,-1]]],
+   ['Đấu giá (bidding)',[
+    ['Bid requests',a=>X[a].bidreq,0,0],['Bids in auction (%)',a=>X[a].inauc,1,1],['Win rate (%)',a=>X[a].win,1,1]]],
+   ['Cơ cấu doanh thu',[
+    ['% doanh thu Interstitial',a=>X[a].fI,1,0],['% doanh thu Native',a=>X[a].fN,1,0],['% doanh thu Banner',a=>X[a].fB,1,0],['% doanh thu Rewarded',a=>X[a].fR,1,0],
+    ['% doanh thu ad first open (sdk_*)',a=>FO[a].earn/T[a].earn*100,1,0],['Số ad unit có impression',a=>X[a].nU,0,0],['Số nguồn có doanh thu',a=>X[a].nS,0,0]]],
+   ['Doanh thu trên user',[
+    ['DAU cộng 3 ngày',a=>AU[a],0,1],['User mới 3 ngày',a=>NEWU[a],0,1],['Doanh thu / user-ngày ($)',a=>T[a].earn/AU[a],2,1],['Imp / user-ngày',a=>T[a].imp/AU[a],1,1],['Request / user-ngày',a=>T[a].req/AU[a],0,0],['LTV D0 ($)',a=>Q[a].ltv0,2,1]]],
+   ['Giữ chân & hành vi',[
+    ['R1 (%)',a=>Q[a].r1,2,1],['Session / user',a=>Q[a].sess,2,1],['Dùng app không-ads (giây)',a=>Q[a].nonad,0,1],['Xem ads toàn màn / user (giây)',a=>Q[a].fsad,1,-1],['% DAU là user quay lại',a=>Q[a].retPct,1,1],['Home rate (%)',a=>Q[a].home,1,1],['Tỉ lệ first open (%)',a=>Q[a].fo,1,1]]],
+   ['Mua user (UA)',[
+    ['Chi phí UA 3 ngày ($)',a=>Q[a].cost,0,0],['CPI ($)',a=>Q[a].cpi,2,-1],['Chi phí / cohort user ($)',a=>Q[a].cpu,2,-1],['Doanh thu cohort đến nay ($)',a=>Q[a].rev,0,1],['ROAS D0 (%)',a=>Q[a].roas0,1,1],['ROAS D1 (%)',a=>Q[a].roas1,1,1]]]];
+  const rows=G.map(([title,items])=>`<tr><td class="l" colspan="5" style="background:var(--soft);font-weight:700">${title}</td></tr>`+items.map(([l,fn,dp,dir])=>{
+    const a=fn('Dream'),b=fn('Renix');const ratio=b?a/b:0;
+    let who='<span class="tag">—</span>';
+    if(dir&&a!==b){const dw=(dir>0)===(a>b);who=`<span class="tag ${dw?'':'hyp'}" style="${dw?'color:var(--dream);border-color:var(--dream)':'color:var(--renix);border-color:var(--renix)'}">${dw?'Dream':'Renix'}</span>`}
+    return `<tr><td class="l">${l}</td><td>${nf(a,dp)}</td><td>${nf(b,dp)}</td><td>${b?nf(ratio,2)+'×':'—'}</td><td>${who}</td></tr>`}).join('')).join('');
+  const wins={Dream:0,Renix:0};
+  G.forEach(([,items])=>items.forEach(([,fn,,dir])=>{if(dir){const a=fn('Dream'),b=fn('Renix');if(a!==b)wins[(dir>0)===(a>b)?'Dream':'Renix']++}}));
+  return `<section class="card" id="s8b"><div class="kicker">Toàn bộ chỉ số</div><h2>Bảng so sánh tất cả chỉ số</h2>
+    <p class="sub">Cột “Tốt hơn” chỉ tính các chỉ số có hướng rõ ràng (cao hơn tốt, hoặc thấp hơn tốt như CPI, latency); chỉ số quy mô/cơ cấu để trung tính (—). Tính trên các chỉ số có hướng: Dream thắng <b class="dream">${wins.Dream}</b>, Renix thắng <b class="renix">${wins.Renix}</b>.</p>
+    <div class="tablewrap" style="max-height:none"><table><tr><th class="l nosort">Chỉ số</th><th class="nosort"><span class="dream">DreamShot</span></th><th class="nosort"><span class="renix">Renix AI</span></th><th class="nosort">Dream / Renix</th><th class="nosort">Tốt hơn</th></tr>${rows}</table></div>
+    <p class="note">Latency TB tính theo trọng số request; Bids in auction và Win rate tính theo trọng số bid request của các nguồn bidding. Chỉ số theo user dùng DAU thật (xem mục User & first open).</p></section>`}
+
 function urow(l,a,b,dp){return `<tr><td class="l">${l}</td><td>${nf(a,dp)}</td><td>${nf(b,dp)}</td><td>${nf(a/b,2)}×</td></tr>`}
 function kpi(l,a,b,d){return `<div class="kpi"><div class="l">${l}</div><div class="v"><b class="dream">${a}</b><b class="renix">${b}</b></div><div class="d">${d}</div></div>`}
 function diff(n,t,p,cls,tag){return `<div class="it"><div class="n">${n}</div><div><b>${t}</b><p>${p}</p></div><span class="tag ${cls}">${tag}</span></div>`}
